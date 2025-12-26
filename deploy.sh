@@ -553,15 +553,107 @@ EOF
         echo -e "${GREEN}  ✓ Using existing $ENV_FILE${NC}"
     fi
     
-    # SSL certificates
+    # Domain and SSL configuration
+    echo ""
+    if [ "$AUTO_YES" = false ]; then
+        echo -e "${CYAN}Do you have a domain name pointing to this server?${NC}"
+        echo "  (e.g., ifinbank.example.com)"
+        echo ""
+        read -p "Enter domain name (or press Enter to skip): " DOMAIN_NAME
+        
+        if [ -n "$DOMAIN_NAME" ]; then
+            # Validate domain
+            echo -e "  Validating domain ${DOMAIN_NAME}..."
+            
+            # Add domain to ALLOWED_HOSTS
+            sed -i "s/ALLOWED_HOSTS=.*/ALLOWED_HOSTS=${DOMAIN_NAME},www.${DOMAIN_NAME},localhost,127.0.0.1,${PUBLIC_IP:-},*/" .env.production
+            sed -i "s|CSRF_TRUSTED_ORIGINS=.*|CSRF_TRUSTED_ORIGINS=https://${DOMAIN_NAME},https://www.${DOMAIN_NAME},https://localhost|" .env.production
+            
+            echo -e "${GREEN}  ✓ Domain configured: ${DOMAIN_NAME}${NC}"
+            
+            # Ask about Let's Encrypt
+            echo ""
+            echo -e "${CYAN}Would you like to setup Let's Encrypt SSL? (Recommended)${NC}"
+            echo "  This will obtain a free, trusted SSL certificate."
+            echo ""
+            read -p "Setup Let's Encrypt? (y/N): " setup_letsencrypt
+            
+            if [[ $setup_letsencrypt =~ ^[Yy]$ ]]; then
+                echo ""
+                read -p "Enter your email for Let's Encrypt notifications: " LE_EMAIL
+                
+                if [ -n "$LE_EMAIL" ]; then
+                    echo -e "  Setting up Let's Encrypt..."
+                    
+                    # Install certbot if not present
+                    if ! command -v certbot &> /dev/null; then
+                        echo -e "  Installing Certbot..."
+                        if [ "$(detect_os)" = "ubuntu" ] || [ "$(detect_os)" = "debian" ]; then
+                            sudo apt-get update && sudo apt-get install -y certbot
+                        elif [ "$(detect_os)" = "centos" ] || [ "$(detect_os)" = "rhel" ]; then
+                            sudo yum install -y certbot
+                        fi
+                    fi
+                    
+                    # Make sure port 80 is free for certbot
+                    docker compose -f docker-compose.yml down 2>/dev/null || true
+                    
+                    # Obtain certificate
+                    echo -e "  Obtaining SSL certificate..."
+                    sudo certbot certonly --standalone \
+                        -d "$DOMAIN_NAME" \
+                        -d "www.$DOMAIN_NAME" \
+                        --email "$LE_EMAIL" \
+                        --agree-tos \
+                        --non-interactive \
+                        --expand 2>/dev/null || \
+                    sudo certbot certonly --standalone \
+                        -d "$DOMAIN_NAME" \
+                        --email "$LE_EMAIL" \
+                        --agree-tos \
+                        --non-interactive 2>/dev/null
+                    
+                    if [ $? -eq 0 ]; then
+                        # Copy certificates
+                        mkdir -p nginx/ssl
+                        sudo cp /etc/letsencrypt/live/$DOMAIN_NAME/fullchain.pem nginx/ssl/
+                        sudo cp /etc/letsencrypt/live/$DOMAIN_NAME/privkey.pem nginx/ssl/
+                        sudo chown $USER:$USER nginx/ssl/*.pem
+                        
+                        echo -e "${GREEN}  ✓ Let's Encrypt SSL configured!${NC}"
+                        
+                        # Save domain for renewal
+                        echo "$DOMAIN_NAME" > .domain
+                        echo "$LE_EMAIL" > .le_email
+                        
+                        # Update nginx config for domain
+                        if [ -f "nginx/conf.d/ifinbank.conf" ]; then
+                            sed -i "s/server_name localhost;/server_name ${DOMAIN_NAME} www.${DOMAIN_NAME};/" nginx/conf.d/ifinbank.conf
+                            sed -i "s/server_name _;/server_name ${DOMAIN_NAME} www.${DOMAIN_NAME};/" nginx/conf.d/ifinbank.conf
+                        fi
+                        
+                        USE_LETSENCRYPT=true
+                    else
+                        echo -e "${YELLOW}  ⚠ Let's Encrypt failed. Using self-signed certificate.${NC}"
+                        echo -e "  Make sure:"
+                        echo -e "    - Domain ${DOMAIN_NAME} points to this server"
+                        echo -e "    - Port 80 is open in firewall"
+                    fi
+                fi
+            fi
+        fi
+    fi
+    
+    # Generate self-signed certificate if Let's Encrypt wasn't used
     if [ ! -f "nginx/ssl/fullchain.pem" ]; then
         echo -e "  Generating self-signed SSL certificate..."
         mkdir -p nginx/ssl
+        CERT_CN="${DOMAIN_NAME:-localhost}"
         openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
             -keyout nginx/ssl/privkey.pem \
             -out nginx/ssl/fullchain.pem \
-            -subj "/CN=localhost" 2>/dev/null
-        echo -e "${GREEN}  ✓ SSL certificate generated${NC}"
+            -subj "/CN=$CERT_CN" 2>/dev/null
+        echo -e "${GREEN}  ✓ Self-signed SSL certificate generated${NC}"
     else
         echo -e "${GREEN}  ✓ SSL certificates exist${NC}"
     fi
@@ -685,6 +777,11 @@ fi
 # Re-detect IP for summary
 SERVER_IP=$(curl -s --max-time 3 ifconfig.me 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}' || echo "your-server-ip")
 
+# Check if domain was configured
+if [ -f ".domain" ]; then
+    CONFIGURED_DOMAIN=$(cat .domain)
+fi
+
 echo ""
 echo -e "${GREEN}${BOLD}"
 echo "╔═══════════════════════════════════════════════════════════════╗"
@@ -696,10 +793,21 @@ echo -e "${NC}"
 
 echo -e "${CYAN}${BOLD}Access URLs:${NC}"
 if [ "$ENVIRONMENT" = "prod" ]; then
-    echo "  🌐 Local:        https://localhost"
-    echo "  🌐 Server IP:    https://${SERVER_IP}"
-    echo "  🔧 Admin Panel:  https://${SERVER_IP}/admin"
-    echo "  ❤️  Health Check: https://${SERVER_IP}/health/"
+    if [ -n "$CONFIGURED_DOMAIN" ]; then
+        echo "  🌐 Domain:       https://${CONFIGURED_DOMAIN} ✨"
+        echo "  🔧 Admin Panel:  https://${CONFIGURED_DOMAIN}/admin"
+        echo "  ❤️  Health Check: https://${CONFIGURED_DOMAIN}/health/"
+        if [ "$USE_LETSENCRYPT" = true ]; then
+            echo ""
+            echo -e "  ${GREEN}🔒 SSL: Let's Encrypt (trusted certificate)${NC}"
+        fi
+    else
+        echo "  🌐 Server IP:    https://${SERVER_IP}"
+        echo "  🔧 Admin Panel:  https://${SERVER_IP}/admin"
+        echo "  ❤️  Health Check: https://${SERVER_IP}/health/"
+        echo ""
+        echo -e "  ${YELLOW}🔒 SSL: Self-signed (browser will show warning)${NC}"
+    fi
 else
     echo "  🌐 Application:  http://localhost:8000"
     echo "  🔧 Admin Panel:  http://localhost:8000/admin"
