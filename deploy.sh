@@ -782,27 +782,38 @@ echo -e "${GREEN}  ✓ Services started${NC}"
 
 echo -e "${CYAN}[6/6] Initializing application...${NC}"
 
+# Define compose command with env file for prod
+if [ "$ENVIRONMENT" = "prod" ]; then
+    CMD="$COMPOSE_CMD --env-file .env.production -f $COMPOSE_FILE"
+else
+    CMD="$COMPOSE_CMD -f $COMPOSE_FILE"
+fi
+
 # Wait for database
 echo -e "  Waiting for database to be ready..."
 sleep 15
 
-# Run migrations
 echo -e "  Running migrations..."
-$COMPOSE_CMD -f "$COMPOSE_FILE" exec -T web python manage.py migrate --no-input 2>/dev/null || true
+$CMD exec -T web python manage.py migrate --no-input
 echo -e "${GREEN}  ✓ Database migrated${NC}"
 
 # Collect static (production only)
 if [ "$ENVIRONMENT" = "prod" ]; then
-    $COMPOSE_CMD -f "$COMPOSE_FILE" exec -T web python manage.py collectstatic --no-input 2>/dev/null || true
+    echo -e "  Collecting static files..."
+    $CMD exec -T web python manage.py collectstatic --no-input
     echo -e "${GREEN}  ✓ Static files collected${NC}"
+    
+    # Restart Nginx to ensure it detects new files
+    echo -e "  Reloading Nginx..."
+    $CMD restart nginx
 fi
 
 # Seed policies
-$COMPOSE_CMD -f "$COMPOSE_FILE" exec -T web python manage.py seed_policies 2>/dev/null || true
+$CMD exec -T web python manage.py seed_policies 2>/dev/null || true
 echo -e "${GREEN}  ✓ Policies seeded${NC}"
 
 # Check for admin user
-HAS_ADMIN=$($COMPOSE_CMD -f "$COMPOSE_FILE" exec -T web python -c "
+HAS_ADMIN=$($CMD exec -T web python -c "
 import os
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 import django; django.setup()
@@ -813,7 +824,7 @@ print('yes' if User.objects.filter(is_superuser=True).exists() else 'no')
 if [ "$HAS_ADMIN" = "no" ]; then
     echo -e "${YELLOW}  Creating admin user...${NC}"
     if [ "$AUTO_YES" = true ]; then
-        $COMPOSE_CMD -f "$COMPOSE_FILE" exec -T web python -c "
+        $CMD exec -T web python -c "
 import os
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 import django; django.setup()
@@ -823,7 +834,7 @@ User.objects.create_superuser('admin@ifinbank.com', 'admin123', first_name='Admi
         echo -e "${GREEN}  ✓ Admin created: admin@ifinbank.com / admin123${NC}"
     else
         echo ""
-        $COMPOSE_CMD -f "$COMPOSE_FILE" exec web python manage.py createsuperuser
+        $CMD exec web python manage.py createsuperuser
     fi
 else
     echo -e "${GREEN}  ✓ Admin user exists${NC}"
