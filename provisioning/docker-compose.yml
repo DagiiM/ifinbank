@@ -241,6 +241,36 @@ services:
       timeout: 10s
       retries: 3
 
+  # ===========================================================================
+  # Ollama - CPU-Compatible AI Model Server (Alternative to vLLM)
+  # ===========================================================================
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ifinbank_ollama
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - ifinbank_network
+    expose:
+      - "11434"
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    # Pull vision model on startup
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        /bin/ollama serve &
+        sleep 5
+        /bin/ollama pull llava
+        wait
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
 # =============================================================================
 # Networks
 # =============================================================================
@@ -261,3 +291,5 @@ volumes:
   vllm_models:
   vllm_cache:
   chromadb_data:
+  ollama_data:
+

@@ -427,8 +427,12 @@ ALLOWED_HOSTS=localhost,127.0.0.1
 
 POSTGRES_PASSWORD=${DB_PASSWORD}
 
+# AI Backend (vLLM for GPU, Ollama for CPU)
 VLLM_API_URL=http://vllm:8000
+OLLAMA_API_URL=http://ollama:11434
+OLLAMA_MODEL=llava
 USE_VLLM_OCR=$([[ "$NO_GPU" = true ]] && echo "false" || echo "true")
+USE_OLLAMA_OCR=$([[ "$NO_GPU" = true ]] && echo "true" || echo "false")
 USE_CHROMADB=true
 
 VERIFICATION_AUTO_APPROVE=85.0
@@ -477,8 +481,8 @@ if [ "$ENVIRONMENT" = "prod" ]; then
     COMPOSE_FILE="docker-compose.yml"
     
     if [ "$NO_GPU" = true ]; then
-        echo -e "${YELLOW}  Building without vLLM (GPU not available)${NC}"
-        $COMPOSE_CMD -f "$COMPOSE_FILE" build web db redis chromadb nginx celery_worker celery_beat
+        echo -e "${YELLOW}  Building with Ollama (CPU mode - no vLLM)${NC}"
+        $COMPOSE_CMD -f "$COMPOSE_FILE" build web db redis chromadb nginx celery_worker celery_beat ollama
     else
         $COMPOSE_CMD -f "$COMPOSE_FILE" build
     fi
@@ -496,7 +500,8 @@ echo -e "${GREEN}  ✓ Build complete${NC}"
 echo -e "${CYAN}[5/6] Starting services...${NC}"
 
 if [ "$ENVIRONMENT" = "prod" ] && [ "$NO_GPU" = true ]; then
-    $COMPOSE_CMD -f "$COMPOSE_FILE" up -d web db redis chromadb nginx celery_worker celery_beat
+    echo -e "${YELLOW}  Starting with Ollama (LLaVA model will be downloaded)${NC}"
+    $COMPOSE_CMD -f "$COMPOSE_FILE" up -d web db redis chromadb nginx celery_worker celery_beat ollama
 else
     $COMPOSE_CMD -f "$COMPOSE_FILE" up -d
 fi
@@ -592,8 +597,11 @@ echo "  Shell:    cd provisioning && $COMPOSE_CMD -f $COMPOSE_FILE exec web pyth
 echo ""
 
 if [ "$ENVIRONMENT" = "prod" ] && [ "$NO_GPU" = true ]; then
-    echo -e "${YELLOW}${BOLD}Note:${NC} AI/OCR services are disabled (no GPU). Documents will use mock extraction."
+    echo -e "${CYAN}${BOLD}AI Backend:${NC} Ollama with LLaVA (CPU mode)"
+    echo -e "  The LLaVA vision model is being downloaded (~4GB)."
+    echo -e "  Check progress: cd provisioning && $COMPOSE_CMD -f $COMPOSE_FILE logs -f ollama"
     echo ""
 fi
 
 echo -e "${GREEN}${BOLD}🎉 iFin Bank is ready! Open your browser to access the application.${NC}"
+
