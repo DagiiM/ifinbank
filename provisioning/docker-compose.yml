@@ -111,6 +111,8 @@ services:
     image: postgres:15-alpine
     container_name: ifinbank_db
     restart: unless-stopped
+    env_file:
+      - .env.production
     environment:
       - POSTGRES_DB=ifinbank
       - POSTGRES_USER=ifinbank

@@ -20,10 +20,13 @@ RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Install Python dependencies
-COPY requirements.txt requirements-prod.txt ./
+COPY requirements.txt ./
 RUN pip install --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir -r requirements-prod.txt
+    pip install --no-cache-dir -r requirements.txt
+
+# Install production dependencies if available
+COPY requirements-prod.tx[t] ./
+RUN if [ -f requirements-prod.txt ]; then pip install --no-cache-dir -r requirements-prod.txt; fi
 
 # Stage 2: Production image
 FROM python:3.11-slim as production
