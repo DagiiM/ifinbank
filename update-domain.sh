@@ -45,7 +45,7 @@ if [ -f ".env.production" ]; then
     
     # Restart services to apply changes
     echo "Restarting services..."
-    docker compose -f docker-compose.yml restart web nginx
+    docker compose --env-file .env.production -f docker-compose.yml restart web nginx
     
     echo ""
     echo "✅ Domain updated successfully!"

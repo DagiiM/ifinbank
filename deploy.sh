@@ -760,9 +760,16 @@ echo -e "${GREEN}  ✓ Build complete${NC}"
 
 echo -e "${CYAN}[5/6] Starting services...${NC}"
 
+# Ensure environment is loaded for docker compose
+if [ "$ENVIRONMENT" = "prod" ] && [ -f ".env.production" ]; then
+    export $(grep -v '^#' .env.production | xargs)
+fi
+
 if [ "$ENVIRONMENT" = "prod" ] && [ "$NO_GPU" = true ]; then
     echo -e "${YELLOW}  Starting with Ollama (LLaVA model will be downloaded)${NC}"
-    $COMPOSE_CMD -f "$COMPOSE_FILE" up -d web db redis chromadb nginx celery_worker celery_beat ollama
+    $COMPOSE_CMD --env-file .env.production -f "$COMPOSE_FILE" up -d web db redis chromadb nginx celery_worker celery_beat ollama
+elif [ "$ENVIRONMENT" = "prod" ]; then
+    $COMPOSE_CMD --env-file .env.production -f "$COMPOSE_FILE" up -d
 else
     $COMPOSE_CMD -f "$COMPOSE_FILE" up -d
 fi
