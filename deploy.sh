@@ -499,13 +499,40 @@ if [ "$ENVIRONMENT" = "prod" ]; then
                       openssl rand -base64 24 | tr -d '\n' || \
                       head -c 24 /dev/urandom | base64 | tr -d '\n')
         
+        # Auto-detect server IP addresses
+        SERVER_IPS=""
+        
+        # Get public IP
+        PUBLIC_IP=$(curl -s --max-time 5 ifconfig.me 2>/dev/null || \
+                    curl -s --max-time 5 icanhazip.com 2>/dev/null || \
+                    curl -s --max-time 5 ipecho.net/plain 2>/dev/null || \
+                    echo "")
+        
+        # Get private IPs
+        PRIVATE_IPS=$(hostname -I 2>/dev/null | tr ' ' ',' | sed 's/,$//' || echo "")
+        
+        # Build ALLOWED_HOSTS
+        ALLOWED_HOSTS="localhost,127.0.0.1"
+        if [ -n "$PRIVATE_IPS" ]; then
+            ALLOWED_HOSTS="$ALLOWED_HOSTS,$PRIVATE_IPS"
+        fi
+        if [ -n "$PUBLIC_IP" ]; then
+            ALLOWED_HOSTS="$ALLOWED_HOSTS,$PUBLIC_IP"
+        fi
+        # Add wildcard for any domain pointing to this server
+        ALLOWED_HOSTS="$ALLOWED_HOSTS,*"
+        
+        echo -e "  Detected IPs: ${PUBLIC_IP:-none} (public), ${PRIVATE_IPS:-none} (private)"
+        
         cat > "$ENV_FILE" << EOF
 # iFin Bank Production Configuration
 # Generated: $(date)
+# Server IPs: Public=${PUBLIC_IP:-none}, Private=${PRIVATE_IPS:-none}
 
 SECRET_KEY=${SECRET_KEY}
 DEBUG=False
-ALLOWED_HOSTS=localhost,127.0.0.1
+ALLOWED_HOSTS=${ALLOWED_HOSTS}
+CSRF_TRUSTED_ORIGINS=https://localhost,https://127.0.0.1${PUBLIC_IP:+,https://$PUBLIC_IP}
 
 POSTGRES_PASSWORD=${DB_PASSWORD}
 
@@ -655,6 +682,9 @@ fi
 # Success Summary
 #-------------------------------------------------------------------------------
 
+# Re-detect IP for summary
+SERVER_IP=$(curl -s --max-time 3 ifconfig.me 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}' || echo "your-server-ip")
+
 echo ""
 echo -e "${GREEN}${BOLD}"
 echo "╔═══════════════════════════════════════════════════════════════╗"
@@ -666,9 +696,10 @@ echo -e "${NC}"
 
 echo -e "${CYAN}${BOLD}Access URLs:${NC}"
 if [ "$ENVIRONMENT" = "prod" ]; then
-    echo "  🌐 Application:  https://localhost"
-    echo "  🔧 Admin Panel:  https://localhost/admin"
-    echo "  ❤️  Health Check: https://localhost/health/"
+    echo "  🌐 Local:        https://localhost"
+    echo "  🌐 Server IP:    https://${SERVER_IP}"
+    echo "  🔧 Admin Panel:  https://${SERVER_IP}/admin"
+    echo "  ❤️  Health Check: https://${SERVER_IP}/health/"
 else
     echo "  🌐 Application:  http://localhost:8000"
     echo "  🔧 Admin Panel:  http://localhost:8000/admin"
