@@ -54,21 +54,103 @@ while [[ $# -gt 0 ]]; do
             AUTO_YES=true
             shift
             ;;
-        -h|--help)
-            echo "Usage: ./deploy.sh [dev|prod] [options]"
+        stop)
+            # Stop all services
+            echo -e "${CYAN}Stopping all services...${NC}"
+            cd "$PROVISIONING_DIR"
+            if [ -f "docker-compose.yml" ]; then
+                docker compose -f docker-compose.yml down 2>/dev/null || docker-compose -f docker-compose.yml down
+            fi
+            if [ -f "docker-compose.dev.yml" ]; then
+                docker compose -f docker-compose.dev.yml down 2>/dev/null || docker-compose -f docker-compose.dev.yml down
+            fi
+            echo -e "${GREEN}✓ All services stopped${NC}"
+            exit 0
+            ;;
+        uninstall|clean)
+            # Complete uninstall
+            echo -e "${CYAN}${BOLD}"
+            echo "╔═══════════════════════════════════════════════════════════════╗"
+            echo "║              iFin Bank - Uninstall                            ║"
+            echo "╚═══════════════════════════════════════════════════════════════╝"
+            echo -e "${NC}"
+            
+            echo -e "${YELLOW}This will remove:${NC}"
+            echo "  - All Docker containers"
+            echo "  - All Docker images"
+            echo "  - All Docker volumes (DATABASE DATA WILL BE LOST!)"
+            echo "  - Generated configuration files"
             echo ""
-            echo "Environments:"
-            echo "  dev, development   Development environment (no GPU required)"
-            echo "  prod, production   Production environment (GPU for vLLM)"
+            
+            if [ "$2" != "-y" ] && [ "$2" != "--yes" ]; then
+                read -p "Are you sure? Type 'yes' to confirm: " confirm
+                if [ "$confirm" != "yes" ]; then
+                    echo "Cancelled."
+                    exit 0
+                fi
+            fi
+            
+            cd "$PROVISIONING_DIR"
+            
+            echo -e "${CYAN}[1/4] Stopping containers...${NC}"
+            docker compose -f docker-compose.yml down --remove-orphans 2>/dev/null || true
+            docker compose -f docker-compose.dev.yml down --remove-orphans 2>/dev/null || true
+            echo -e "${GREEN}  ✓ Containers stopped${NC}"
+            
+            echo -e "${CYAN}[2/4] Removing volumes...${NC}"
+            docker compose -f docker-compose.yml down -v 2>/dev/null || true
+            docker compose -f docker-compose.dev.yml down -v 2>/dev/null || true
+            echo -e "${GREEN}  ✓ Volumes removed${NC}"
+            
+            echo -e "${CYAN}[3/4] Removing images...${NC}"
+            docker images --filter "reference=*ifinbank*" -q | xargs -r docker rmi -f 2>/dev/null || true
+            echo -e "${GREEN}  ✓ Images removed${NC}"
+            
+            echo -e "${CYAN}[4/4] Cleaning up configuration...${NC}"
+            rm -f .env.production 2>/dev/null || true
+            rm -rf nginx/ssl/*.pem 2>/dev/null || true
+            echo -e "${GREEN}  ✓ Configuration cleaned${NC}"
+            
+            echo ""
+            echo -e "${GREEN}${BOLD}✅ Uninstall complete!${NC}"
+            echo ""
+            echo "To reinstall, run: ./deploy.sh"
+            exit 0
+            ;;
+        status)
+            # Show status
+            echo -e "${CYAN}${BOLD}iFin Bank - Service Status${NC}"
+            echo ""
+            cd "$PROVISIONING_DIR"
+            docker compose -f docker-compose.yml ps 2>/dev/null || docker compose -f docker-compose.dev.yml ps 2>/dev/null || echo "No services running"
+            exit 0
+            ;;
+        logs)
+            # Show logs
+            cd "$PROVISIONING_DIR"
+            docker compose -f docker-compose.yml logs -f 2>/dev/null || docker compose -f docker-compose.dev.yml logs -f
+            exit 0
+            ;;
+        -h|--help)
+            echo "Usage: ./deploy.sh [command] [options]"
+            echo ""
+            echo "Commands:"
+            echo "  dev, development   Deploy development environment"
+            echo "  prod, production   Deploy production environment"
+            echo "  stop               Stop all services"
+            echo "  uninstall, clean   Remove everything (containers, images, volumes)"
+            echo "  status             Show service status"
+            echo "  logs               Show logs (follow mode)"
             echo ""
             echo "Options:"
-            echo "  --no-gpu          Skip vLLM/GPU services"
+            echo "  --no-gpu          Skip vLLM/GPU services (use Ollama)"
             echo "  -y, --yes         Auto-confirm all prompts"
             echo "  -h, --help        Show this help"
             exit 0
             ;;
         *)
             echo "Unknown option: $1"
+            echo "Run './deploy.sh --help' for usage"
             exit 1
             ;;
     esac
