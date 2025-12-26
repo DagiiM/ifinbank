@@ -3,6 +3,8 @@
 #===============================================================================
 # iFin Bank Verification System - One-Step Deployment
 # 
+# This script handles EVERYTHING including Docker installation.
+#
 # Usage: ./deploy.sh [environment]
 #   - ./deploy.sh           # Interactive mode
 #   - ./deploy.sh dev       # Development environment
@@ -73,6 +75,194 @@ while [[ $# -gt 0 ]]; do
 done
 
 #-------------------------------------------------------------------------------
+# Helper Functions
+#-------------------------------------------------------------------------------
+
+detect_os() {
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        if [ -f /etc/os-release ]; then
+            . /etc/os-release
+            OS=$ID
+            OS_VERSION=$VERSION_ID
+        else
+            OS="linux"
+        fi
+    elif [[ "$OSTYPE" == "darwin"* ]]; then
+        OS="macos"
+    elif [[ "$OSTYPE" == "msys" ]] || [[ "$OSTYPE" == "cygwin" ]]; then
+        OS="windows"
+    else
+        OS="unknown"
+    fi
+    echo "$OS"
+}
+
+install_docker_ubuntu() {
+    echo -e "${CYAN}Installing Docker on Ubuntu/Debian...${NC}"
+    
+    # Remove old versions
+    sudo apt-get remove -y docker docker-engine docker.io containerd runc 2>/dev/null || true
+    
+    # Install prerequisites
+    sudo apt-get update
+    sudo apt-get install -y \
+        apt-transport-https \
+        ca-certificates \
+        curl \
+        gnupg \
+        lsb-release
+    
+    # Add Docker's official GPG key
+    sudo mkdir -p /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    
+    # Set up repository
+    echo \
+        "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+        $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    
+    # Install Docker
+    sudo apt-get update
+    sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    
+    # Add current user to docker group
+    sudo usermod -aG docker $USER
+    
+    # Start Docker
+    sudo systemctl start docker
+    sudo systemctl enable docker
+    
+    echo -e "${GREEN}✓ Docker installed successfully${NC}"
+    echo -e "${YELLOW}Note: You may need to log out and back in for group changes to take effect${NC}"
+}
+
+install_docker_debian() {
+    echo -e "${CYAN}Installing Docker on Debian...${NC}"
+    
+    sudo apt-get remove -y docker docker-engine docker.io containerd runc 2>/dev/null || true
+    
+    sudo apt-get update
+    sudo apt-get install -y \
+        apt-transport-https \
+        ca-certificates \
+        curl \
+        gnupg \
+        lsb-release
+    
+    sudo mkdir -p /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    
+    echo \
+        "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian \
+        $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    
+    sudo apt-get update
+    sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    
+    sudo usermod -aG docker $USER
+    sudo systemctl start docker
+    sudo systemctl enable docker
+    
+    echo -e "${GREEN}✓ Docker installed successfully${NC}"
+}
+
+install_docker_centos() {
+    echo -e "${CYAN}Installing Docker on CentOS/RHEL/Fedora...${NC}"
+    
+    sudo yum remove -y docker docker-client docker-client-latest docker-common docker-latest docker-latest-logrotate docker-logrotate docker-engine 2>/dev/null || true
+    
+    sudo yum install -y yum-utils
+    sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+    
+    sudo yum install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    
+    sudo usermod -aG docker $USER
+    sudo systemctl start docker
+    sudo systemctl enable docker
+    
+    echo -e "${GREEN}✓ Docker installed successfully${NC}"
+}
+
+install_docker_macos() {
+    echo -e "${CYAN}Installing Docker on macOS...${NC}"
+    
+    # Check for Homebrew
+    if ! command -v brew &> /dev/null; then
+        echo -e "${YELLOW}Homebrew not found. Installing Homebrew first...${NC}"
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    fi
+    
+    # Install Docker Desktop via Homebrew
+    brew install --cask docker
+    
+    echo -e "${GREEN}✓ Docker Desktop installed${NC}"
+    echo -e "${YELLOW}Please open Docker Desktop from Applications to complete setup${NC}"
+    
+    # Open Docker Desktop
+    open -a Docker
+    
+    echo "Waiting for Docker to start..."
+    while ! docker system info > /dev/null 2>&1; do
+        sleep 2
+    done
+    echo -e "${GREEN}✓ Docker is running${NC}"
+}
+
+install_nvidia_docker() {
+    echo -e "${CYAN}Installing NVIDIA Docker support...${NC}"
+    
+    # Add NVIDIA package repositories
+    distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
+    curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | sudo apt-key add -
+    curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | \
+        sudo tee /etc/apt/sources.list.d/nvidia-docker.list
+    
+    sudo apt-get update
+    sudo apt-get install -y nvidia-docker2
+    
+    sudo systemctl restart docker
+    
+    echo -e "${GREEN}✓ NVIDIA Docker installed${NC}"
+}
+
+install_docker() {
+    local os=$(detect_os)
+    
+    echo -e "${CYAN}Detected OS: $os${NC}"
+    
+    case $os in
+        ubuntu)
+            install_docker_ubuntu
+            ;;
+        debian)
+            install_docker_debian
+            ;;
+        centos|rhel|fedora)
+            install_docker_centos
+            ;;
+        macos)
+            install_docker_macos
+            ;;
+        windows)
+            echo -e "${YELLOW}Windows detected.${NC}"
+            echo ""
+            echo "Please install Docker Desktop manually:"
+            echo "  1. Download from: https://www.docker.com/products/docker-desktop"
+            echo "  2. Run the installer"
+            echo "  3. Start Docker Desktop"
+            echo "  4. Re-run this script"
+            echo ""
+            exit 1
+            ;;
+        *)
+            echo -e "${RED}Unsupported OS: $os${NC}"
+            echo "Please install Docker manually: https://docs.docker.com/get-docker/"
+            exit 1
+            ;;
+    esac
+}
+
+#-------------------------------------------------------------------------------
 # Banner
 #-------------------------------------------------------------------------------
 
@@ -114,51 +304,110 @@ fi
 echo ""
 
 #-------------------------------------------------------------------------------
-# Pre-flight Checks
+# Step 1: Install Docker if not present
 #-------------------------------------------------------------------------------
 
-echo -e "${CYAN}[1/5] Pre-flight checks...${NC}"
+echo -e "${CYAN}[1/6] Checking Docker...${NC}"
 
-# Check Docker
 if ! command -v docker &> /dev/null; then
-    echo -e "${RED}✗ Docker not found. Please install Docker.${NC}"
-    echo "  https://docs.docker.com/get-docker/"
-    exit 1
+    echo -e "${YELLOW}Docker not found. Installing...${NC}"
+    
+    if [ "$AUTO_YES" = false ]; then
+        read -p "Install Docker automatically? (Y/n): " install_docker_choice
+        if [[ $install_docker_choice =~ ^[Nn]$ ]]; then
+            echo "Please install Docker manually: https://docs.docker.com/get-docker/"
+            exit 1
+        fi
+    fi
+    
+    install_docker
+    
+    # Reload shell to get docker group
+    if [[ "$(detect_os)" != "macos" ]]; then
+        echo -e "${YELLOW}Docker group updated. Using sudo for this session...${NC}"
+        DOCKER_CMD="sudo docker"
+        COMPOSE_CMD="sudo docker compose"
+    fi
+else
+    echo -e "${GREEN}  ✓ Docker is installed${NC}"
+    DOCKER_CMD="docker"
 fi
-echo -e "${GREEN}  ✓ Docker${NC}"
 
 # Check Docker Compose
 if docker compose version &> /dev/null 2>&1; then
-    COMPOSE_CMD="docker compose"
+    COMPOSE_CMD="${DOCKER_CMD} compose"
+    echo -e "${GREEN}  ✓ Docker Compose (plugin)${NC}"
 elif command -v docker-compose &> /dev/null; then
-    COMPOSE_CMD="docker-compose"
+    if [[ "$DOCKER_CMD" == "sudo docker" ]]; then
+        COMPOSE_CMD="sudo docker-compose"
+    else
+        COMPOSE_CMD="docker-compose"
+    fi
+    echo -e "${GREEN}  ✓ Docker Compose (standalone)${NC}"
 else
-    echo -e "${RED}✗ Docker Compose not found.${NC}"
+    echo -e "${RED}Docker Compose not found.${NC}"
+    echo "Please install Docker Compose: https://docs.docker.com/compose/install/"
     exit 1
 fi
-echo -e "${GREEN}  ✓ Docker Compose${NC}"
 
-# Check GPU for production
+# Verify Docker is running
+if ! $DOCKER_CMD info > /dev/null 2>&1; then
+    echo -e "${YELLOW}Docker daemon not running. Starting...${NC}"
+    if [[ "$(detect_os)" == "macos" ]]; then
+        open -a Docker
+        echo "Waiting for Docker to start..."
+        while ! docker info > /dev/null 2>&1; do
+            sleep 2
+        done
+    else
+        sudo systemctl start docker
+    fi
+fi
+echo -e "${GREEN}  ✓ Docker daemon is running${NC}"
+
+#-------------------------------------------------------------------------------
+# Step 2: GPU Check for Production
+#-------------------------------------------------------------------------------
+
+echo -e "${CYAN}[2/6] Checking GPU...${NC}"
+
 if [ "$ENVIRONMENT" = "prod" ] && [ "$NO_GPU" = false ]; then
     if command -v nvidia-smi &> /dev/null; then
         echo -e "${GREEN}  ✓ NVIDIA GPU detected${NC}"
+        
+        # Check for nvidia-docker
+        if ! $DOCKER_CMD info 2>/dev/null | grep -q "nvidia"; then
+            echo -e "${YELLOW}  NVIDIA Docker not configured${NC}"
+            if [ "$AUTO_YES" = false ]; then
+                read -p "  Install NVIDIA Docker support? (Y/n): " install_nvidia
+                if [[ ! $install_nvidia =~ ^[Nn]$ ]]; then
+                    install_nvidia_docker
+                fi
+            else
+                install_nvidia_docker
+            fi
+        else
+            echo -e "${GREEN}  ✓ NVIDIA Docker configured${NC}"
+        fi
     else
-        echo -e "${YELLOW}  ⚠ No NVIDIA GPU detected. Use --no-gpu for CPU-only mode.${NC}"
+        echo -e "${YELLOW}  ⚠ No NVIDIA GPU detected${NC}"
         if [ "$AUTO_YES" = false ]; then
-            read -p "  Continue without GPU? (y/N): " continue_no_gpu
-            if [[ ! $continue_no_gpu =~ ^[Yy]$ ]]; then
+            read -p "  Continue without GPU (AI services disabled)? (Y/n): " continue_no_gpu
+            if [[ $continue_no_gpu =~ ^[Nn]$ ]]; then
                 exit 1
             fi
         fi
         NO_GPU=true
     fi
+else
+    echo -e "${GREEN}  ✓ GPU not required for this environment${NC}"
 fi
 
 #-------------------------------------------------------------------------------
-# Environment Configuration
+# Step 3: Environment Configuration
 #-------------------------------------------------------------------------------
 
-echo -e "${CYAN}[2/5] Configuring environment...${NC}"
+echo -e "${CYAN}[3/6] Configuring environment...${NC}"
 
 cd "$PROVISIONING_DIR"
 
@@ -166,13 +415,16 @@ if [ "$ENVIRONMENT" = "prod" ]; then
     ENV_FILE=".env.production"
     
     if [ ! -f "$ENV_FILE" ]; then
-        echo -e "${YELLOW}  Creating production environment file...${NC}"
+        echo -e "  Creating production environment file..."
         
-        # Generate secret key
-        SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_urlsafe(50))" 2>/dev/null || openssl rand -base64 50 | tr -d '\n')
+        # Generate secure keys
+        SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_urlsafe(50))" 2>/dev/null || \
+                     openssl rand -base64 50 | tr -d '\n' || \
+                     head -c 50 /dev/urandom | base64 | tr -d '\n')
         
-        # Generate database password
-        DB_PASSWORD=$(python3 -c "import secrets; print(secrets.token_urlsafe(24))" 2>/dev/null || openssl rand -base64 24 | tr -d '\n')
+        DB_PASSWORD=$(python3 -c "import secrets; print(secrets.token_urlsafe(24))" 2>/dev/null || \
+                      openssl rand -base64 24 | tr -d '\n' || \
+                      head -c 24 /dev/urandom | base64 | tr -d '\n')
         
         cat > "$ENV_FILE" << EOF
 # iFin Bank Production Configuration
@@ -199,7 +451,7 @@ EOF
     
     # SSL certificates
     if [ ! -f "nginx/ssl/fullchain.pem" ]; then
-        echo -e "${YELLOW}  Generating self-signed SSL certificate...${NC}"
+        echo -e "  Generating self-signed SSL certificate..."
         mkdir -p nginx/ssl
         openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
             -keyout nginx/ssl/privkey.pem \
@@ -210,7 +462,7 @@ EOF
         echo -e "${GREEN}  ✓ SSL certificates exist${NC}"
     fi
 else
-    # Development - create .env if not exists
+    # Development environment
     if [ ! -f "../.env" ]; then
         cat > "../.env" << EOF
 DEBUG=True
@@ -219,23 +471,23 @@ USE_VLLM_OCR=false
 USE_CHROMADB=true
 EOF
         echo -e "${GREEN}  ✓ Created development .env${NC}"
+    else
+        echo -e "${GREEN}  ✓ Using existing .env${NC}"
     fi
 fi
 
 #-------------------------------------------------------------------------------
-# Build & Deploy
+# Step 4: Build Containers
 #-------------------------------------------------------------------------------
 
-echo -e "${CYAN}[3/5] Building containers...${NC}"
+echo -e "${CYAN}[4/6] Building containers...${NC}"
 
 if [ "$ENVIRONMENT" = "prod" ]; then
     COMPOSE_FILE="docker-compose.yml"
     
-    # Modify compose file for no GPU
     if [ "$NO_GPU" = true ]; then
-        # Create a version without vLLM
-        echo -e "${YELLOW}  Deploying without vLLM (GPU not available)${NC}"
-        $COMPOSE_CMD -f "$COMPOSE_FILE" build web db redis chromadb nginx
+        echo -e "${YELLOW}  Building without vLLM (GPU not available)${NC}"
+        $COMPOSE_CMD -f "$COMPOSE_FILE" build web db redis chromadb nginx celery_worker celery_beat
     else
         $COMPOSE_CMD -f "$COMPOSE_FILE" build
     fi
@@ -246,10 +498,13 @@ fi
 
 echo -e "${GREEN}  ✓ Build complete${NC}"
 
-echo -e "${CYAN}[4/5] Starting services...${NC}"
+#-------------------------------------------------------------------------------
+# Step 5: Start Services
+#-------------------------------------------------------------------------------
+
+echo -e "${CYAN}[5/6] Starting services...${NC}"
 
 if [ "$ENVIRONMENT" = "prod" ] && [ "$NO_GPU" = true ]; then
-    # Start without vLLM
     $COMPOSE_CMD -f "$COMPOSE_FILE" up -d web db redis chromadb nginx celery_worker celery_beat
 else
     $COMPOSE_CMD -f "$COMPOSE_FILE" up -d
@@ -258,16 +513,17 @@ fi
 echo -e "${GREEN}  ✓ Services started${NC}"
 
 #-------------------------------------------------------------------------------
-# Initialize Application
+# Step 6: Initialize Application
 #-------------------------------------------------------------------------------
 
-echo -e "${CYAN}[5/5] Initializing application...${NC}"
+echo -e "${CYAN}[6/6] Initializing application...${NC}"
 
 # Wait for database
-echo -e "  Waiting for database..."
-sleep 10
+echo -e "  Waiting for database to be ready..."
+sleep 15
 
 # Run migrations
+echo -e "  Running migrations..."
 $COMPOSE_CMD -f "$COMPOSE_FILE" exec -T web python manage.py migrate --no-input 2>/dev/null || true
 echo -e "${GREEN}  ✓ Database migrated${NC}"
 
@@ -299,11 +555,14 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 import django; django.setup()
 from apps.accounts.models import User
 User.objects.create_superuser('admin@ifinbank.com', 'admin123', first_name='Admin', last_name='User')
-print('Created: admin@ifinbank.com / admin123')
-" 2>/dev/null || echo "  (will create on first access)"
+" 2>/dev/null || true
+        echo -e "${GREEN}  ✓ Admin created: admin@ifinbank.com / admin123${NC}"
     else
+        echo ""
         $COMPOSE_CMD -f "$COMPOSE_FILE" exec web python manage.py createsuperuser
     fi
+else
+    echo -e "${GREEN}  ✓ Admin user exists${NC}"
 fi
 
 #-------------------------------------------------------------------------------
@@ -331,7 +590,7 @@ fi
 echo ""
 
 echo -e "${CYAN}${BOLD}Service Status:${NC}"
-$COMPOSE_CMD -f "$COMPOSE_FILE" ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}"
+$COMPOSE_CMD -f "$COMPOSE_FILE" ps --format "table {{.Name}}\t{{.Status}}" 2>/dev/null || $COMPOSE_CMD -f "$COMPOSE_FILE" ps
 echo ""
 
 echo -e "${CYAN}${BOLD}Quick Commands:${NC}"
@@ -343,6 +602,7 @@ echo ""
 
 if [ "$ENVIRONMENT" = "prod" ] && [ "$NO_GPU" = true ]; then
     echo -e "${YELLOW}${BOLD}Note:${NC} AI/OCR services are disabled (no GPU). Documents will use mock extraction."
+    echo ""
 fi
 
-echo -e "${GREEN}${BOLD}🎉 iFin Bank is ready!${NC}"
+echo -e "${GREEN}${BOLD}🎉 iFin Bank is ready! Open your browser to access the application.${NC}"
