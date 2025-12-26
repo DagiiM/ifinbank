@@ -477,6 +477,14 @@ fi
 
 echo -e "${CYAN}[4/6] Building containers...${NC}"
 
+# Export environment variables for docker-compose
+if [ "$ENVIRONMENT" = "prod" ] && [ -f ".env.production" ]; then
+    set -a
+    source .env.production
+    set +a
+    echo -e "${GREEN}  ✓ Environment variables loaded${NC}"
+fi
+
 if [ "$ENVIRONMENT" = "prod" ]; then
     COMPOSE_FILE="docker-compose.yml"
     

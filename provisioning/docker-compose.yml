@@ -6,11 +6,9 @@
 # - PostgreSQL database
 # - Redis cache/queue
 # - Nginx reverse proxy
-# - vLLM with DeepSeek-OCR (GPU)
+# - vLLM with DeepSeek-OCR (GPU) / Ollama (CPU)
 # - ChromaDB vector database
 # ===============================================================================
-
-version: '3.8'
 
 services:
   # ===========================================================================

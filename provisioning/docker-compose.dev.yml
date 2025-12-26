@@ -4,8 +4,6 @@
 # Lighter stack for local development without GPU requirements
 # ===============================================================================
 
-version: '3.8'
-
 services:
   # ===========================================================================
   # Django Application (Development)
