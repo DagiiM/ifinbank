@@ -377,30 +377,21 @@ if [ "$ENVIRONMENT" = "prod" ] && [ "$NO_GPU" = false ]; then
         
         # Check for nvidia-docker
         if ! $DOCKER_CMD info 2>/dev/null | grep -q "nvidia"; then
-            echo -e "${YELLOW}  NVIDIA Docker not configured${NC}"
-            if [ "$AUTO_YES" = false ]; then
-                read -p "  Install NVIDIA Docker support? (Y/n): " install_nvidia
-                if [[ ! $install_nvidia =~ ^[Nn]$ ]]; then
-                    install_nvidia_docker
-                fi
-            else
-                install_nvidia_docker
-            fi
+            echo -e "${YELLOW}  NVIDIA Docker not configured. Installing...${NC}"
+            install_nvidia_docker 2>/dev/null || {
+                echo -e "${YELLOW}  Could not install nvidia-docker, continuing without GPU${NC}"
+                NO_GPU=true
+            }
         else
             echo -e "${GREEN}  ✓ NVIDIA Docker configured${NC}"
         fi
     else
-        echo -e "${YELLOW}  ⚠ No NVIDIA GPU detected${NC}"
-        if [ "$AUTO_YES" = false ]; then
-            read -p "  Continue without GPU (AI services disabled)? (Y/n): " continue_no_gpu
-            if [[ $continue_no_gpu =~ ^[Nn]$ ]]; then
-                exit 1
-            fi
-        fi
+        echo -e "${YELLOW}  ℹ No NVIDIA GPU detected - continuing with CPU mode${NC}"
+        echo -e "${YELLOW}    (AI/OCR will use mock extraction)${NC}"
         NO_GPU=true
     fi
 else
-    echo -e "${GREEN}  ✓ GPU not required for this environment${NC}"
+    echo -e "${GREEN}  ✓ GPU check skipped${NC}"
 fi
 
 #-------------------------------------------------------------------------------
