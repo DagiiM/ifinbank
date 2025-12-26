@@ -1,0 +1,161 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Verification Requests - iFin Bank Verify{% endblock %}
+{% block page_title %}Verification Requests{% endblock %}
+
+{% block content %}
+<!-- Filters -->
+<div class="card" style="margin-bottom: 24px;">
+    <div class="card-body" style="padding: 16px 24px;">
+        <form method="get" action="" style="display: flex; gap: 16px; align-items: center; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 200px;">
+                <input type="text" name="search" class="form-control" 
+                       placeholder="Search by Customer ID or Reference..."
+                       value="{{ current_filters.search|default:'' }}">
+            </div>
+            <select name="status" class="form-control" style="width: 160px;">
+                <option value="">All Status</option>
+                {% for value, label in status_choices %}
+                <option value="{{ value }}" {% if current_filters.status == value %}selected{% endif %}>
+                    {{ label }}
+                </option>
+                {% endfor %}
+            </select>
+            <select name="priority" class="form-control" style="width: 140px;">
+                <option value="">All Priority</option>
+                {% for value, label in priority_choices %}
+                <option value="{{ value }}" {% if current_filters.priority == value|stringformat:"d" %}selected{% endif %}>
+                    {{ label }}
+                </option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-secondary">
+                <i class="fas fa-filter"></i> Filter
+            </button>
+            <a href="{% url 'verification:request_list' %}" class="btn btn-secondary">
+                <i class="fas fa-times"></i> Clear
+            </a>
+            <a href="{% url 'verification:request_create' %}" class="btn btn-primary" style="margin-left: auto;">
+                <i class="fas fa-plus"></i> New Verification
+            </a>
+        </form>
+    </div>
+</div>
+
+<!-- Requests Table -->
+<div class="card">
+    <div class="card-body" style="padding: 0;">
+        <div class="table-container">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Reference</th>
+                        <th>Customer ID</th>
+                        <th>Account</th>
+                        <th>Status</th>
+                        <th>Priority</th>
+                        <th>Score</th>
+                        <th>Requested By</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for req in requests %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'verification:request_detail' req.id %}" style="font-weight: 600;">
+                                {{ req.reference_number }}
+                            </a>
+                        </td>
+                        <td>{{ req.customer_id }}</td>
+                        <td>{{ req.account_reference|default:"—" }}</td>
+                        <td>
+                            <span class="badge badge-{% if req.status == 'completed' %}{% if req.is_approved %}success{% else %}danger{% endif %}{% elif req.status == 'review_required' %}warning{% elif req.status == 'processing' %}info{% elif req.status == 'failed' %}danger{% else %}secondary{% endif %}">
+                                {% if req.status == 'completed' and req.is_approved %}
+                                    Approved
+                                {% elif req.status == 'completed' and not req.is_approved %}
+                                    Rejected
+                                {% else %}
+                                    {{ req.get_status_display }}
+                                {% endif %}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge badge-{% if req.priority <= 2 %}danger{% elif req.priority <= 4 %}warning{% else %}secondary{% endif %}">
+                                {{ req.get_priority_display }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if req.overall_score %}
+                            <span style="font-weight: 600; color: {% if req.overall_score >= 85 %}var(--success){% elif req.overall_score >= 70 %}var(--warning){% else %}var(--danger){% endif %};">
+                                {{ req.overall_score }}%
+                            </span>
+                            {% else %}
+                            <span style="color: var(--text-tertiary);">—</span>
+                            {% endif %}
+                        </td>
+                        <td style="font-size: 0.875rem;">
+                            {{ req.requested_by.get_short_name|default:"System" }}
+                        </td>
+                        <td style="color: var(--text-secondary); font-size: 0.875rem;">
+                            {{ req.created_at|date:"M d, Y H:i" }}
+                        </td>
+                        <td>
+                            <div style="display: flex; gap: 8px;">
+                                <a href="{% url 'verification:request_detail' req.id %}" class="btn btn-secondary btn-sm" title="View Details">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                {% if req.status == 'pending' %}
+                                <a href="{% url 'verification:request_process' req.id %}" class="btn btn-primary btn-sm" title="Process">
+                                    <i class="fas fa-play"></i>
+                                </a>
+                                {% elif req.status == 'review_required' %}
+                                <a href="{% url 'verification:request_review' req.id %}" class="btn btn-warning btn-sm" title="Review">
+                                    <i class="fas fa-clipboard-check"></i>
+                                </a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="9" style="text-align: center; color: var(--text-tertiary); padding: 60px;">
+                            <i class="fas fa-search" style="font-size: 3rem; margin-bottom: 16px; display: block; opacity: 0.5;"></i>
+                            <p style="font-size: 1.1rem; margin-bottom: 8px;">No verification requests found</p>
+                            <p style="font-size: 0.875rem;">Try adjusting your filters or create a new verification request.</p>
+                            <a href="{% url 'verification:request_create' %}" class="btn btn-primary" style="margin-top: 16px;">
+                                <i class="fas fa-plus"></i> Create Verification Request
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    {% if requests.has_other_pages %}
+    <div class="card-footer" style="display: flex; justify-content: center; gap: 8px;">
+        {% if requests.has_previous %}
+        <a href="?page={{ requests.previous_page_number }}{% for key, value in current_filters.items %}{% if value %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+           class="btn btn-secondary btn-sm">
+            <i class="fas fa-chevron-left"></i> Previous
+        </a>
+        {% endif %}
+        
+        <span style="display: flex; align-items: center; padding: 0 16px; color: var(--text-secondary);">
+            Page {{ requests.number }} of {{ requests.paginator.num_pages }}
+        </span>
+        
+        {% if requests.has_next %}
+        <a href="?page={{ requests.next_page_number }}{% for key, value in current_filters.items %}{% if value %}&{{ key }}={{ value }}{% endif %}{% endfor %}" 
+           class="btn btn-secondary btn-sm">
+            Next <i class="fas fa-chevron-right"></i>
+        </a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

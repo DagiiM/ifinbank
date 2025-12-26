@@ -1,0 +1,315 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ request.reference_number }} - iFin Bank Verify{% endblock %}
+{% block page_title %}Verification Details{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+    <div style="display: flex; align-items: center; gap: 16px;">
+        <a href="{% url 'verification:request_list' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Back
+        </a>
+        <div>
+            <h2 style="margin: 0; font-size: 1.5rem;">{{ request.reference_number }}</h2>
+            <span style="color: var(--text-secondary); font-size: 0.875rem;">
+                Customer: {{ request.customer_id }}
+            </span>
+        </div>
+    </div>
+    <div style="display: flex; gap: 12px;">
+        {% if request.status == 'pending' %}
+        <form method="post" action="{% url 'verification:request_process' request.id %}" style="display: inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-primary">
+                <i class="fas fa-play"></i> Process Verification
+            </button>
+        </form>
+        {% elif request.status == 'review_required' %}
+        <a href="{% url 'verification:request_review' request.id %}" class="btn btn-warning">
+            <i class="fas fa-clipboard-check"></i> Review & Decide
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
+    <!-- Status Card -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Status</h3>
+            <span class="badge badge-{% if request.status == 'completed' %}{% if request.is_approved %}success{% else %}danger{% endif %}{% elif request.status == 'review_required' %}warning{% elif request.status == 'processing' %}info{% else %}secondary{% endif %}" style="font-size: 0.875rem;">
+                {% if request.status == 'completed' and request.is_approved %}
+                    Approved
+                {% elif request.status == 'completed' and not request.is_approved %}
+                    Rejected
+                {% else %}
+                    {{ request.get_status_display }}
+                {% endif %}
+            </span>
+        </div>
+        <div class="card-body">
+            <div style="display: flex; align-items: center; gap: 24px;">
+                {% if request.overall_score %}
+                <div class="score-ring" style="width: 100px; height: 100px;">
+                    <svg width="100" height="100">
+                        <circle class="bg" cx="50" cy="50" r="44" style="fill: none; stroke: var(--bg-tertiary); stroke-width: 8;"/>
+                        <circle class="progress" cx="50" cy="50" r="44" 
+                                style="fill: none; 
+                                       stroke: {% if request.overall_score >= 85 %}var(--success){% elif request.overall_score >= 70 %}var(--warning){% else %}var(--danger){% endif %}; 
+                                       stroke-width: 8; 
+                                       stroke-linecap: round;
+                                       stroke-dasharray: 276.46; 
+                                       stroke-dashoffset: {{ 276.46|add:"-2.7646"|divisibleby:request.overall_score }};
+                                       transform: rotate(-90deg);
+                                       transform-origin: center;"/>
+                    </svg>
+                    <span class="value" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 1.5rem; font-weight: 700;">
+                        {{ request.overall_score }}%
+                    </span>
+                </div>
+                {% endif %}
+                <div style="flex: 1;">
+                    <div style="margin-bottom: 12px;">
+                        <span style="color: var(--text-secondary); font-size: 0.875rem;">Decision</span>
+                        <p style="margin: 4px 0;">{{ request.decision_reason|default:"Pending verification" }}</p>
+                    </div>
+                    {% if request.reviewed_by %}
+                    <div>
+                        <span style="color: var(--text-secondary); font-size: 0.875rem;">Reviewed by</span>
+                        <p style="margin: 4px 0;">{{ request.reviewed_by.get_full_name }} at {{ request.reviewed_at|date:"M d, Y H:i" }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Customer Info Card -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Customer Information</h3>
+        </div>
+        <div class="card-body">
+            {% with data=request.customer_data %}
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div>
+                    <span style="color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Full Name</span>
+                    <p style="margin: 4px 0; font-weight: 500;">{{ data.full_name|default:"—" }}</p>
+                </div>
+                <div>
+                    <span style="color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">ID Number</span>
+                    <p style="margin: 4px 0; font-weight: 500;">{{ data.id_number|default:"—" }}</p>
+                </div>
+                <div>
+                    <span style="color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Date of Birth</span>
+                    <p style="margin: 4px 0;">{{ data.date_of_birth|default:"—" }}</p>
+                </div>
+                <div>
+                    <span style="color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Phone</span>
+                    <p style="margin: 4px 0;">{{ data.phone|default:"—" }}</p>
+                </div>
+                <div style="grid-column: 1 / -1;">
+                    <span style="color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Address</span>
+                    <p style="margin: 4px 0;">{{ data.address|default:"—" }}</p>
+                </div>
+            </div>
+            {% endwith %}
+        </div>
+    </div>
+</div>
+
+<!-- Verification Results -->
+<div class="card" style="margin-bottom: 24px;">
+    <div class="card-header">
+        <h3 class="card-title">Verification Results</h3>
+        <span style="color: var(--text-secondary); font-size: 0.875rem;">
+            {{ results.count }} check{{ results.count|pluralize }}
+        </span>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        {% if results %}
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Check</th>
+                    <th>Type</th>
+                    <th>Score</th>
+                    <th>Confidence</th>
+                    <th>Status</th>
+                    <th>Message</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for result in results %}
+                <tr>
+                    <td style="font-weight: 500;">
+                        {{ result.check_name|title }}
+                    </td>
+                    <td>
+                        <span class="badge badge-secondary">{{ result.get_check_type_display }}</span>
+                    </td>
+                    <td>
+                        <span style="font-weight: 600; color: {% if result.score >= 85 %}var(--success){% elif result.score >= 70 %}var(--warning){% else %}var(--danger){% endif %};">
+                            {{ result.score }}%
+                        </span>
+                    </td>
+                    <td style="color: var(--text-secondary);">
+                        {{ result.confidence_percentage }}
+                    </td>
+                    <td>
+                        {% if result.passed %}
+                        <span style="color: var(--success);"><i class="fas fa-check-circle"></i> Passed</span>
+                        {% else %}
+                        <span style="color: var(--danger);"><i class="fas fa-times-circle"></i> Failed</span>
+                        {% endif %}
+                    </td>
+                    <td style="color: var(--text-secondary); font-size: 0.875rem;">
+                        {{ result.message }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div style="text-align: center; padding: 40px; color: var(--text-tertiary);">
+            <i class="fas fa-clipboard-list" style="font-size: 2rem; margin-bottom: 12px;"></i>
+            <p>No verification results yet. Process the request to run checks.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Discrepancies -->
+{% if discrepancies %}
+<div class="card" style="margin-bottom: 24px;">
+    <div class="card-header">
+        <h3 class="card-title">Discrepancies</h3>
+        <span class="badge badge-warning">{{ discrepancies.count }}</span>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Field</th>
+                    <th>Entered Value</th>
+                    <th>Document Value</th>
+                    <th>Similarity</th>
+                    <th>Severity</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for disc in discrepancies %}
+                <tr>
+                    <td style="font-weight: 500;">{{ disc.field_name|title }}</td>
+                    <td style="color: var(--danger);">{{ disc.entered_value }}</td>
+                    <td style="color: var(--success);">{{ disc.document_value }}</td>
+                    <td>{{ disc.similarity_score }}%</td>
+                    <td>
+                        <span class="badge badge-{{ disc.severity_class }}">
+                            {{ disc.severity_icon }} {{ disc.get_severity_display }}
+                        </span>
+                    </td>
+                    <td>
+                        {% if disc.is_resolved %}
+                        <span style="color: var(--success);"><i class="fas fa-check"></i> {{ disc.get_resolution_status_display }}</span>
+                        {% else %}
+                        <span style="color: var(--warning);"><i class="fas fa-clock"></i> Unresolved</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Documents -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Documents</h3>
+        <span style="color: var(--text-secondary); font-size: 0.875rem;">
+            {{ documents.count }} document{{ documents.count|pluralize }}
+        </span>
+    </div>
+    <div class="card-body">
+        {% if documents %}
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px;">
+            {% for doc in documents %}
+            <div style="background: var(--bg-tertiary); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-{% if doc.is_image %}image{% elif doc.is_pdf %}file-pdf{% else %}file{% endif %}" style="color: var(--primary); font-size: 1.5rem;"></i>
+                    <span class="badge badge-secondary">{{ doc.get_document_type_display }}</span>
+                </div>
+                <p style="font-size: 0.875rem; word-break: break-all;">{{ doc.original_filename }}</p>
+                <div style="font-size: 0.75rem; color: var(--text-tertiary);">
+                    {{ doc.file_size_display }} &bull; 
+                    {% if doc.is_processed %}
+                    <span style="color: var(--success);"><i class="fas fa-check"></i> Processed</span>
+                    {% else %}
+                    <span style="color: var(--warning);"><i class="fas fa-clock"></i> Pending</span>
+                    {% endif %}
+                </div>
+                <a href="{% url 'documents:view' doc.id %}" target="_blank" class="btn btn-secondary btn-sm" style="margin-top: auto;">
+                    <i class="fas fa-external-link-alt"></i> View
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div style="text-align: center; padding: 40px; color: var(--text-tertiary);">
+            <i class="fas fa-folder-open" style="font-size: 2rem; margin-bottom: 12px;"></i>
+            <p>No documents uploaded yet.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Timeline -->
+<div class="card" style="margin-top: 24px;">
+    <div class="card-header">
+        <h3 class="card-title">Timeline</h3>
+    </div>
+    <div class="card-body">
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+            <div style="display: flex; gap: 16px; align-items: flex-start;">
+                <div style="width: 36px; height: 36px; background: var(--primary-light); color: var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-plus"></i>
+                </div>
+                <div>
+                    <p style="font-weight: 500;">Request Created</p>
+                    <p style="font-size: 0.875rem; color: var(--text-secondary);">
+                        {{ request.created_at|date:"M d, Y H:i" }} by {{ request.requested_by.get_full_name|default:"System" }}
+                    </p>
+                </div>
+            </div>
+            
+            {% if request.started_at %}
+            <div style="display: flex; gap: 16px; align-items: flex-start;">
+                <div style="width: 36px; height: 36px; background: var(--info-light); color: var(--info); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-cog"></i>
+                </div>
+                <div>
+                    <p style="font-weight: 500;">Processing Started</p>
+                    <p style="font-size: 0.875rem; color: var(--text-secondary);">{{ request.started_at|date:"M d, Y H:i" }}</p>
+                </div>
+            </div>
+            {% endif %}
+            
+            {% if request.completed_at %}
+            <div style="display: flex; gap: 16px; align-items: flex-start;">
+                <div style="width: 36px; height: 36px; background: {% if request.is_approved %}var(--success-light){% else %}var(--danger-light){% endif %}; color: {% if request.is_approved %}var(--success){% else %}var(--danger){% endif %}; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-{% if request.is_approved %}check{% else %}times{% endif %}"></i>
+                </div>
+                <div>
+                    <p style="font-weight: 500;">{% if request.is_approved %}Approved{% else %}Rejected{% endif %}</p>
+                    <p style="font-size: 0.875rem; color: var(--text-secondary);">{{ request.completed_at|date:"M d, Y H:i" }}</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

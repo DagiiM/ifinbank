@@ -1,0 +1,172 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Dashboard - iFin Bank Verify{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<!-- Stats Cards -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon primary">
+            <i class="fas fa-clock"></i>
+        </div>
+        <div class="stat-content">
+            <div class="stat-value">{{ stats.pending }}</div>
+            <div class="stat-label">Pending Verifications</div>
+        </div>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-icon warning">
+            <i class="fas fa-exclamation-triangle"></i>
+        </div>
+        <div class="stat-content">
+            <div class="stat-value">{{ stats.review_required }}</div>
+            <div class="stat-label">Review Required</div>
+        </div>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-icon success">
+            <i class="fas fa-check-circle"></i>
+        </div>
+        <div class="stat-content">
+            <div class="stat-value">{{ stats.completed_today }}</div>
+            <div class="stat-label">Completed Today</div>
+        </div>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-icon info">
+            <i class="fas fa-percentage"></i>
+        </div>
+        <div class="stat-content">
+            <div class="stat-value">{{ stats.approval_rate }}%</div>
+            <div class="stat-label">Approval Rate (30d)</div>
+        </div>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px;">
+    <!-- Recent Requests -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Recent Verifications</h3>
+            <a href="{% url 'verification:request_list' %}" class="btn btn-secondary btn-sm">
+                View All <i class="fas fa-arrow-right"></i>
+            </a>
+        </div>
+        <div class="card-body" style="padding: 0;">
+            <div class="table-container">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Reference</th>
+                            <th>Customer ID</th>
+                            <th>Status</th>
+                            <th>Score</th>
+                            <th>Created</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for req in recent_requests %}
+                        <tr>
+                            <td>
+                                <a href="{% url 'verification:request_detail' req.id %}" style="font-weight: 500;">
+                                    {{ req.reference_number }}
+                                </a>
+                            </td>
+                            <td>{{ req.customer_id }}</td>
+                            <td>
+                                <span class="badge badge-{% if req.status == 'completed' %}{% if req.is_approved %}success{% else %}danger{% endif %}{% elif req.status == 'review_required' %}warning{% elif req.status == 'processing' %}info{% else %}secondary{% endif %}">
+                                    {{ req.get_status_display }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if req.overall_score %}
+                                    <span style="color: {% if req.overall_score >= 85 %}var(--success){% elif req.overall_score >= 70 %}var(--warning){% else %}var(--danger){% endif %};">
+                                        {{ req.overall_score }}%
+                                    </span>
+                                {% else %}
+                                    <span style="color: var(--text-tertiary);">—</span>
+                                {% endif %}
+                            </td>
+                            <td style="color: var(--text-secondary); font-size: 0.875rem;">
+                                {{ req.created_at|timesince }} ago
+                            </td>
+                            <td>
+                                <a href="{% url 'verification:request_detail' req.id %}" class="btn btn-secondary btn-sm">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" style="text-align: center; color: var(--text-tertiary); padding: 40px;">
+                                <i class="fas fa-inbox" style="font-size: 2rem; margin-bottom: 8px; display: block;"></i>
+                                No verification requests yet
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Quick Actions & My Queue -->
+    <div style="display: flex; flex-direction: column; gap: 24px;">
+        <!-- Quick Actions -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Quick Actions</h3>
+            </div>
+            <div class="card-body">
+                <a href="{% url 'verification:request_create' %}" class="btn btn-primary" style="width: 100%; margin-bottom: 12px;">
+                    <i class="fas fa-plus"></i>
+                    New Verification
+                </a>
+                <a href="{% url 'verification:request_list' %}?status=review_required" class="btn btn-secondary" style="width: 100%; margin-bottom: 12px;">
+                    <i class="fas fa-clipboard-check"></i>
+                    Review Queue
+                </a>
+                <a href="{% url 'compliance:policy_list' %}" class="btn btn-secondary" style="width: 100%;">
+                    <i class="fas fa-file-shield"></i>
+                    Compliance Policies
+                </a>
+            </div>
+        </div>
+        
+        <!-- My Assigned -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Assigned to Me</h3>
+            </div>
+            <div class="card-body">
+                {% for req in my_requests %}
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border-color);">
+                    <div>
+                        <a href="{% url 'verification:request_detail' req.id %}" style="font-weight: 500;">
+                            {{ req.reference_number }}
+                        </a>
+                        <div style="font-size: 0.75rem; color: var(--text-tertiary);">
+                            {{ req.customer_id }}
+                        </div>
+                    </div>
+                    <span class="badge badge-{% if req.status == 'review_required' %}warning{% else %}secondary{% endif %}">
+                        {{ req.get_status_display }}
+                    </span>
+                </div>
+                {% empty %}
+                <div style="text-align: center; color: var(--text-tertiary); padding: 20px 0;">
+                    <i class="fas fa-check-circle" style="font-size: 1.5rem; margin-bottom: 8px; display: block; color: var(--success);"></i>
+                    No pending assignments
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

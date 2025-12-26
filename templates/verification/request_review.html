@@ -1,0 +1,191 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Review: {{ request.reference_number }} - iFin Bank Verify{% endblock %}
+{% block page_title %}Manual Review{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+    <div style="display: flex; align-items: center; gap: 16px;">
+        <a href="{% url 'verification:request_detail' request.id %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Back to Details
+        </a>
+        <div>
+            <h2 style="margin: 0; font-size: 1.5rem;">{{ request.reference_number }}</h2>
+            <span style="color: var(--text-secondary); font-size: 0.875rem;">
+                Manual Review Required
+            </span>
+        </div>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px;">
+    <!-- Main Content -->
+    <div>
+        <!-- Customer Data vs Document Data -->
+        <div class="card" style="margin-bottom: 24px;">
+            <div class="card-header">
+                <h3 class="card-title">Data Comparison</h3>
+            </div>
+            <div class="card-body" style="padding: 0;">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Field</th>
+                            <th>Entered Value</th>
+                            <th>Document Value</th>
+                            <th>Match</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for result in results %}
+                        {% if result.check_type == 'identity' %}
+                        <tr>
+                            <td style="font-weight: 500;">{{ result.check_name|cut:"_match"|title }}</td>
+                            <td>{{ result.evidence.entered|default:"—" }}</td>
+                            <td>{{ result.evidence.extracted|default:"—" }}</td>
+                            <td>
+                                <span style="font-weight: 600; color: {% if result.passed %}var(--success){% else %}var(--danger){% endif %};">
+                                    {{ result.score }}%
+                                    {% if result.passed %}
+                                    <i class="fas fa-check-circle"></i>
+                                    {% else %}
+                                    <i class="fas fa-times-circle"></i>
+                                    {% endif %}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Discrepancies to Resolve -->
+        {% if discrepancies %}
+        <div class="card" style="margin-bottom: 24px;">
+            <div class="card-header">
+                <h3 class="card-title"><i class="fas fa-exclamation-triangle" style="color: var(--warning);"></i> Discrepancies to Resolve</h3>
+            </div>
+            <div class="card-body">
+                {% for disc in discrepancies %}
+                <div style="background: var(--bg-tertiary); border-radius: 8px; padding: 16px; margin-bottom: 16px; border-left: 4px solid 
+                    {% if disc.severity == 'critical' %}var(--danger)
+                    {% elif disc.severity == 'major' %}var(--warning)
+                    {% else %}var(--info){% endif %};">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                        <span style="font-weight: 600;">{{ disc.field_name|title }}</span>
+                        <span class="badge badge-{{ disc.severity_class }}">
+                            {{ disc.severity_icon }} {{ disc.get_severity_display }}
+                        </span>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 12px;">
+                        <div>
+                            <span style="font-size: 0.75rem; color: var(--text-tertiary);">ENTERED</span>
+                            <p style="color: var(--danger);">{{ disc.entered_value }}</p>
+                        </div>
+                        <div>
+                            <span style="font-size: 0.75rem; color: var(--text-tertiary);">DOCUMENT</span>
+                            <p style="color: var(--success);">{{ disc.document_value }}</p>
+                        </div>
+                    </div>
+                    <p style="font-size: 0.875rem; color: var(--text-secondary);">{{ disc.description }}</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Documents Preview -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Source Documents</h3>
+            </div>
+            <div class="card-body">
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px;">
+                    {% for doc in documents %}
+                    <div style="background: var(--bg-tertiary); border-radius: 8px; padding: 16px;">
+                        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                            <i class="fas fa-file-{% if doc.is_pdf %}pdf{% else %}image{% endif %}" 
+                               style="font-size: 2rem; color: var(--primary);"></i>
+                            <div>
+                                <p style="font-weight: 500;">{{ doc.get_document_type_display }}</p>
+                                <p style="font-size: 0.75rem; color: var(--text-tertiary);">{{ doc.file_size_display }}</p>
+                            </div>
+                        </div>
+                        <a href="{% url 'documents:view' doc.id %}" target="_blank" class="btn btn-secondary btn-sm" style="width: 100%;">
+                            <i class="fas fa-external-link-alt"></i> Open Document
+                        </a>
+                    </div>
+                    {% empty %}
+                    <div style="text-align: center; padding: 40px; color: var(--text-tertiary);">
+                        No documents available
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Decision Panel -->
+    <div>
+        <div class="card" style="position: sticky; top: 90px;">
+            <div class="card-header">
+                <h3 class="card-title">Decision</h3>
+            </div>
+            <div class="card-body">
+                <!-- Current Score -->
+                <div style="text-align: center; margin-bottom: 24px;">
+                    <div style="font-size: 3rem; font-weight: 700; color: {% if request.overall_score >= 70 %}var(--warning){% else %}var(--danger){% endif %};">
+                        {{ request.overall_score|default:"—" }}{% if request.overall_score %}%{% endif %}
+                    </div>
+                    <p style="color: var(--text-secondary);">Current Verification Score</p>
+                </div>
+                
+                <hr style="border: none; border-top: 1px solid var(--border-color); margin: 24px 0;">
+                
+                <!-- Review Notes -->
+                <div class="form-group">
+                    <label for="review_notes" class="form-label">Review Notes</label>
+                    <textarea id="review_notes" class="form-control" rows="4" 
+                              placeholder="Add notes about your review..."></textarea>
+                </div>
+                
+                <!-- Decision Buttons -->
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <form method="post" action="{% url 'verification:request_approve' request.id %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="reason" id="approve_reason">
+                        <button type="submit" class="btn btn-success btn-lg" style="width: 100%;" 
+                                onclick="document.getElementById('approve_reason').value = document.getElementById('review_notes').value || 'Manually approved after review';">
+                            <i class="fas fa-check"></i> Approve
+                        </button>
+                    </form>
+                    
+                    <form method="post" action="{% url 'verification:request_reject' request.id %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="reason" id="reject_reason">
+                        <button type="submit" class="btn btn-danger btn-lg" style="width: 100%;"
+                                onclick="var notes = document.getElementById('review_notes').value; if(!notes){alert('Please provide a reason for rejection'); return false;} document.getElementById('reject_reason').value = notes;">
+                            <i class="fas fa-times"></i> Reject
+                        </button>
+                    </form>
+                </div>
+                
+                <hr style="border: none; border-top: 1px solid var(--border-color); margin: 24px 0;">
+                
+                <div style="font-size: 0.875rem; color: var(--text-tertiary);">
+                    <p><strong>Guidelines:</strong></p>
+                    <ul style="padding-left: 20px; line-height: 1.8;">
+                        <li>Verify discrepancies against source documents</li>
+                        <li>Minor spelling variations may be acceptable</li>
+                        <li>Critical discrepancies require rejection or correction</li>
+                        <li>Always document your decision reason</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,27 @@
+# Production dependencies for iFin Bank Verification System
+
+# WSGI Server
+gunicorn==21.2.0
+
+# Database
+psycopg2-binary==2.9.9
+dj-database-url==2.1.0
+
+# Cache
+django-redis==5.4.0
+
+# Task Queue
+celery==5.3.4
+redis==5.0.1
+
+# Static files
+whitenoise==6.6.0
+
+# Logging
+python-json-logger==2.0.7
+
+# Monitoring (optional)
+sentry-sdk==1.38.0
+
+# Security
+django-cors-headers==4.3.1

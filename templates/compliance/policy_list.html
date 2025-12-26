@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Compliance Policies - iFin Bank Verify{% endblock %}
+{% block page_title %}Compliance Policies{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Active Policies</h3>
+        <span style="color: var(--text-secondary);">{{ policies.count }} polic{{ policies.count|pluralize:"y,ies" }}</span>
+    </div>
+    <div class="card-body">
+        {% if policies %}
+        <div style="display: grid; gap: 16px;">
+            {% for policy in policies %}
+            <div style="background: var(--bg-tertiary); border-radius: 12px; padding: 20px; border-left: 4px solid 
+                {% if policy.category == 'kyc' %}var(--primary)
+                {% elif policy.category == 'aml' %}var(--danger)
+                {% elif policy.category == 'regulatory' %}var(--warning)
+                {% else %}var(--info){% endif %};">
+                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px;">
+                    <div>
+                        <h4 style="margin: 0 0 4px;">{{ policy.name }}</h4>
+                        <span style="font-size: 0.875rem; color: var(--text-tertiary);">{{ policy.code }}</span>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <span class="badge badge-{% if policy.category == 'kyc' %}info{% elif policy.category == 'aml' %}danger{% else %}secondary{% endif %}">
+                            {{ policy.get_category_display }}
+                        </span>
+                        <span class="badge badge-secondary">v{{ policy.version }}</span>
+                    </div>
+                </div>
+                <p style="color: var(--text-secondary); margin-bottom: 12px;">{{ policy.description }}</p>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 0.75rem; color: var(--text-tertiary);">
+                        Effective: {{ policy.effective_date|date:"M d, Y" }}
+                        {% if policy.expiry_date %}• Expires: {{ policy.expiry_date|date:"M d, Y" }}{% endif %}
+                    </span>
+                    <a href="{% url 'compliance:policy_detail' policy.id %}" class="btn btn-secondary btn-sm">
+                        View Rules <i class="fas fa-arrow-right"></i>
+                    </a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div style="text-align: center; padding: 60px; color: var(--text-tertiary);">
+            <i class="fas fa-file-shield" style="font-size: 3rem; margin-bottom: 16px; opacity: 0.5;"></i>
+            <p style="font-size: 1.1rem;">No active policies configured</p>
+            <p style="font-size: 0.875rem;">Contact an administrator to set up compliance policies.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

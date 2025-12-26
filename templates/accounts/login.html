@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+
+{% block title %}Login - iFin Bank Verify{% endblock %}
+
+{% block auth_content %}
+<div class="auth-card">
+    <div class="auth-logo">
+        <i class="fas fa-shield-halved"></i>
+        <h1>iFin Bank Verify</h1>
+        <p>Automated Verification System</p>
+    </div>
+    
+    <form method="post" action="{% url 'accounts:login' %}">
+        {% csrf_token %}
+        
+        <div class="form-group">
+            <label for="email" class="form-label">Email Address</label>
+            <input type="email" id="email" name="email" class="form-control" 
+                   placeholder="Enter your email" required autofocus>
+        </div>
+        
+        <div class="form-group">
+            <label for="password" class="form-label">Password</label>
+            <input type="password" id="password" name="password" class="form-control" 
+                   placeholder="Enter your password" required>
+        </div>
+        
+        <div class="form-group" style="display: flex; justify-content: space-between; align-items: center;">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                <input type="checkbox" name="remember" style="width: 16px; height: 16px;">
+                <span style="font-size: 0.875rem; color: var(--text-secondary);">Remember me</span>
+            </label>
+            <a href="#" style="font-size: 0.875rem;">Forgot password?</a>
+        </div>
+        
+        <button type="submit" class="btn btn-primary btn-lg" style="width: 100%;">
+            <i class="fas fa-sign-in-alt"></i>
+            Sign In
+        </button>
+    </form>
+    
+    <div style="text-align: center; margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border-color);">
+        <p style="font-size: 0.875rem; color: var(--text-tertiary);">
+            &copy; 2024 iFin Bank. All rights reserved.
+        </p>
+    </div>
+</div>
+{% endblock %}

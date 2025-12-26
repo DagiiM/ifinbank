@@ -1,0 +1,110 @@
+# ===============================================================================
+# iFin Bank Verification System - Git Ignore
+# ===============================================================================
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+.venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# Django
+*.log
+*.pot
+*.pyc
+db.sqlite3
+media/
+staticfiles/
+
+# Environment files
+.env
+.env.local
+.env.production
+!.env.production.example
+
+# Local settings
+local_settings.py
+
+# Logs
+logs/
+*.log
+
+# ChromaDB data
+chromadb_data/
+
+# vLLM cache
+vllm_cache/
+
+# Secrets
+*.pem
+*.key
+*.crt
+docker/nginx/ssl/
+
+# Backups
+backups/
+*.sql
+*.dump
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# Node (if using any frontend tooling)
+node_modules/
+npm-debug.log
+
+# Misc
+*.bak
+*.tmp
+*.temp

@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}New Verification - iFin Bank Verify{% endblock %}
+{% block page_title %}Create Verification Request{% endblock %}
+
+{% block content %}
+<div style="max-width: 800px;">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Customer Information</h3>
+            <a href="{% url 'verification:request_list' %}" class="btn btn-secondary btn-sm">
+                <i class="fas fa-times"></i> Cancel
+            </a>
+        </div>
+        <div class="card-body">
+            <form method="post" action="{% url 'verification:request_create' %}">
+                {% csrf_token %}
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                    <div class="form-group">
+                        <label for="customer_id" class="form-label">Customer ID *</label>
+                        <input type="text" id="customer_id" name="customer_id" class="form-control" 
+                               placeholder="e.g., CUST001" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="account_reference" class="form-label">Account Reference</label>
+                        <input type="text" id="account_reference" name="account_reference" class="form-control" 
+                               placeholder="e.g., ACC123456">
+                    </div>
+                </div>
+                
+                <hr style="border: none; border-top: 1px solid var(--border-color); margin: 24px 0;">
+                
+                <h4 style="font-size: 1rem; margin-bottom: 16px; color: var(--text-secondary);">
+                    <i class="fas fa-user"></i> Personal Details
+                </h4>
+                
+                <div class="form-group">
+                    <label for="full_name" class="form-label">Full Name *</label>
+                    <input type="text" id="full_name" name="full_name" class="form-control" 
+                           placeholder="As appears on ID document" required>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                    <div class="form-group">
+                        <label for="id_number" class="form-label">ID Number *</label>
+                        <input type="text" id="id_number" name="id_number" class="form-control" 
+                               placeholder="National ID or Passport number" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="date_of_birth" class="form-label">Date of Birth *</label>
+                        <input type="date" id="date_of_birth" name="date_of_birth" class="form-control" required>
+                    </div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                    <div class="form-group">
+                        <label for="phone" class="form-label">Phone Number</label>
+                        <input type="tel" id="phone" name="phone" class="form-control" 
+                               placeholder="+254 700 000 000">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="email" class="form-label">Email Address</label>
+                        <input type="email" id="email" name="email" class="form-control" 
+                               placeholder="customer@email.com">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="address" class="form-label">Address</label>
+                    <textarea id="address" name="address" class="form-control" rows="3" 
+                              placeholder="Full residential address"></textarea>
+                </div>
+                
+                <hr style="border: none; border-top: 1px solid var(--border-color); margin: 24px 0;">
+                
+                <div class="form-group">
+                    <label for="priority" class="form-label">Priority</label>
+                    <select id="priority" name="priority" class="form-control" style="width: 200px;">
+                        {% for value, label in priority_choices %}
+                        <option value="{{ value }}" {% if value == 5 %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px;">
+                    <a href="{% url 'verification:request_list' %}" class="btn btn-secondary">Cancel</a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Create Verification Request
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div class="card" style="margin-top: 24px;">
+        <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-info-circle" style="color: var(--info);"></i> Information</h3>
+        </div>
+        <div class="card-body">
+            <ul style="color: var(--text-secondary); line-height: 1.8;">
+                <li>Enter the customer data exactly as it appears in the core banking system.</li>
+                <li>After creating the request, you'll be able to upload supporting documents (ID, application form, etc.).</li>
+                <li>The system will automatically compare entered data against the uploaded documents.</li>
+                <li>Higher priority requests are processed first in the verification queue.</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
